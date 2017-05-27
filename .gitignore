@@ -83,3 +83,9 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# For this project
+*.exe
+*.bat
+*.sublime-*
+content/*

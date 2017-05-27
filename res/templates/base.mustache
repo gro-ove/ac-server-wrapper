@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>{{title}}</title>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width,user-scalable=no,initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<!--[if IE ]><link rel="shortcut icon" type="image/x-icon" href="/icon.ico" sizes="16x16" /><![endif]-->
+<!--[if !IE]><!--><link rel="shortcut icon" type="image/x-icon" href="/icon.ico" sizes="16x16"><!--<![endif]-->
+<link rel="icon" sizes="48x48" type="image/png" href="/icon.png" />
+<link rel="icon" sizes="196x196" type="image/png" href="/icon-512.png" />
+<link rel="apple-touch-icon" sizes="152x152" href="http://icons.iconarchive.com/icons/mcdo-design/smooth-leopard/512/Movie-Folder-Graphite-icon.png" />
+<style>
+html { background: #000; min-height: 100%; height: 100%; overflow: hidden; color: #fff; }
+body { min-height: 100%; font-family: Segoe UI, sans-serif; }
+#player { position: fixed; opacity: 0.5; pointer-events: none; z-index: -1; }
+h1 { font-family: Segoe UI Light, Segoe UI, sans-serif; font-weight: 100; font-size: 60px; }
+.body { width: 600px; margin: 120px auto; }
+</style>
+</head>
+<body>
+
+<div id="player"></div>
+<script>
+  var tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+
+  var first = document.getElementsByTagName('script')[0];
+  first.parentNode.insertBefore(tag, first);
+
+  var player;
+  function onYouTubeIframeAPIReady() {
+    player = new YT.Player('player', {
+      height: '100%',
+      width: '100%',
+      playerVars: {
+        autoplay: 1,
+        loop: 1,
+        controls: 0,
+        showinfo: 0,
+        autohide: 1,
+        modestbranding: 1,
+        vq: 'hq720',
+        playlist: 'SWct8vsAWyk'
+      },
+      videoId: 'SWct8vsAWyk',
+      events: {
+        'onReady': onPlayerReady,
+        'onStateChange': onPlayerStateChange
+      }
+    });
+  }
+
+  function onPlayerReady(event) {
+    event.target.playVideo();
+    player.mute();
+  }
+
+  var done = false;
+  function onPlayerStateChange(event) {}
+
+  function stopVideo() {
+    player.stopVideo();
+  }
+
+  function updateSize(){
+    var player = document.getElementById('player');
+    var width = 1280, height = 548;
+    var c = Math.max(window.innerWidth / width, window.innerHeight / height);
+    player.style.width = width * c + 'px';
+    player.style.height = height * c + 'px';
+    player.style.left = (window.innerWidth - width * c) * 0.5 + 'px';
+    player.style.top = (window.innerHeight - height * c) * 0.5 + 'px';
+  }
+
+  updateSize();
+  window.onresize = updateSize;
+</script>
+<div class="body">{{{content}}}</div>
+</body>
+</html>
