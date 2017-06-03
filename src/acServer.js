@@ -4,6 +4,7 @@ const https = require('https');
 const keepAliveAgent = new http.Agent({ keepAlive: true });
 const spawn = require('child_process').spawn;
 const sha1 = require('sha1');
+const zlib = require('zlib');
 
 const AcUtils = require('./acUtils');
 
@@ -13,6 +14,10 @@ function fixName(presetFilename, wrappedHttpPort){
   data = data.replace(/\bNAME=(.+)/, (_, n) => _ + ' 🛈' + wrappedHttpPort);
   fs.writeFileSync(resultFilename, data);
   return resultFilename;
+}
+
+function compress(strData){
+  return zlib.gzipSync(new Buffer(strData, 'utf8'));
 }
 
 function guidToId(guid){
@@ -32,6 +37,9 @@ function getGeoParams(callback){
   });
 }
 
+const AC_DENIED = 0;
+const AC_FORCED = 2;
+
 class AcServer {
   constructor(executableFilename, presetDirectory, wrappedHttpPort, verbose = false, readyCallback = null, 
       contentProvider = null) {
@@ -47,6 +55,13 @@ class AcServer {
     var configEntryListFilename = `${presetDirectory}/entry_list.ini`;
     this._process = spawn(executableFilename, [ '-c', configFilename, '-e', configEntryListFilename ]);
 
+    var extra = `${presetDirectory}/cm_wrapper_params.json`;
+    if (fs.existsSync(extra)){
+      eval('this._extra = ' + fs.readFileSync(extra));
+    } else {
+      this._extra = {};
+    }
+
     this._config = AcUtils.parseIni('' + fs.readFileSync(configFilename));
     this._configEntryList = AcUtils.parseIni('' + fs.readFileSync(configEntryListFilename));
     this._contentProvider = contentProvider;
@@ -61,13 +76,32 @@ class AcServer {
     this._slots = {};
     this._slotsIds = {};
 
+    this._guidsMode = this._config['BOOK'] != null;
     for (var i = 0, section; section = this._configEntryList['CAR_' + i]; i++){
       this._slots[i] = section['GUID'] || null;
       this._slotsIds[i] = guidToId(this._slots[i]);
+      if (this._slots[i] != null){
+        this._guidsMode = true;
+      }
     }
 
-    this._frequency = +this._config['SERVER']['CLIENT_SEND_INTERVAL_HZ'];
-    this._trackId = this._config['SERVER']['TRACK'];
+    var serverSection = this._config['SERVER'];
+    this._frequency = +serverSection['CLIENT_SEND_INTERVAL_HZ'];
+    this._trackId = serverSection['TRACK'];
+    this._password = serverSection['PASSWORD'] || null;
+    this._assists = {
+      absState: +serverSection['ABS_ALLOWED'],
+      tcState: +serverSection['TC_ALLOWED'],
+      fuelRate: +serverSection['FUEL_RATE'],
+      damageMultiplier: +serverSection['DAMAGE_MULTIPLIER'],
+      tyreWearRate: +serverSection['TYRE_WEAR_RATE'],
+      allowedTyresOut: +serverSection['ALLOWED_TYRES_OUT'],
+      stabilityAllowed: serverSection['STABILITY_ALLOWED'] != '0',
+      autoclutchAllowed: serverSection['AUTOCLUTCH_ALLOWED'] != '0',
+      tyreBlanketsAllowed: serverSection['TYRE_BLANKETS_ALLOWED'] != '0',
+      forceVirtualMirror: serverSection['FORCE_VIRTUAL_MIRROR'] != '0',
+    };
+
     this._currentSessionType = 0;
     this._ambientTemperature = +this._config['WEATHER_0']['BASE_TEMPERATURE_AMBIENT'];
     this._roadTemperature = +this._config['WEATHER_0']['BASE_TEMPERATURE_ROAD'];
@@ -103,6 +137,10 @@ class AcServer {
     this._process.on('close', (code) => {
       console.log(`AC server exited with code ${code}`);
     });
+  }
+
+  getPassword(){
+    return this._password;
   }
 
   _processData(d){
@@ -196,10 +234,14 @@ class AcServer {
             var car = players.Cars[i];
             car.ID = this._slotsIds[i];
 
-            // we deliberately replace true/false flag by actual player GUID — this way we’ll be able
-            // to quickly replace it back to either true or false depending on client GUID and won’t
-            // have to rebuild whole JSON string
-            car.IsRequestedGUID = 'temporary_guid_is_here_' + this._slots[i] + '_end';
+            if (this._guidsMode){
+              // we deliberately replace true/false flag by actual player GUID — this way we’ll be able
+              // to quickly replace it back to either true or false depending on client GUID and won’t
+              // have to rebuild whole JSON string
+              car.IsRequestedGUID = 'temporary_guid_is_here_' + this._slots[i] + '_end';
+            } else {
+              delete car.IsRequestedGUID;
+            }
           }
 
           information.players = players;
@@ -230,6 +272,7 @@ class AcServer {
 
         information.city = this._city;
         information.frequency = this._frequency;
+        information.assists = this._assists;
         information.wrappedPort = this._wrappedHttpPort;
         information.ambientTemperature = this._ambientTemperature;
         information.roadTemperature = this._roadTemperature;
@@ -238,10 +281,16 @@ class AcServer {
         information.windDirection = this._windDirection;
         information.grip = this._grip;
         information.gripTransfer = this._gripTransfer;
+        if (this._extra.description){
+          information.description = this._extra.description;
+        }
 
         this._data = information;
         this._dataLastModified = new Date();
         this._dataJson = JSON.stringify(this._data);
+        if (!this._guidsMode){
+          this._dataGzip = compress(this._dataJson);
+        }
         this._dirty = false;
 
         callback && callback(information);
@@ -284,7 +333,13 @@ class AcServer {
     }
 
     if (!this._dirty){
-      callback && callback({ json: this.fixGuid(userGuid, this._dataJson), lastModified: this._dataLastModified });
+      callback && callback(this._guidsMode ? {
+        json: this.fixGuid(userGuid, this._dataJson),
+        lastModified: this._dataLastModified
+      } : {
+        compressed: this._dataGzip,
+        lastModified: this._dataLastModified
+      });
       return;
     }
     
@@ -294,7 +349,13 @@ class AcServer {
         return;
       }
 
-      callback && callback({ json: this.fixGuid(userGuid, this._dataJson), lastModified: this._dataLastModified });
+      callback && callback(this._guidsMode ? { 
+        json: this.fixGuid(userGuid, this._dataJson),
+        lastModified: this._dataLastModified
+      } : {
+        compressed: this._dataGzip,
+        lastModified: this._dataLastModified
+      });
     })
   }
 

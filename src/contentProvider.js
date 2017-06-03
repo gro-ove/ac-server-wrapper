@@ -32,7 +32,7 @@ function filterEntries(entries){
 class ContentProvider {
   constructor(packedContentDirectory) {
     this.directory = packedContentDirectory;
-    this.entries = JSON.parse('' + fs.readFileSync(packedContentDirectory + '/content.json'));
+    eval('this.entries = ' + fs.readFileSync(packedContentDirectory + '/content.json'));
     if (!this.entries.cars) this.entries.cars = {};
 
     this.filtered = filterEntries(this.entries);

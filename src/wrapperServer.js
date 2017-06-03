@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const url = require('url');
+const sha1 = require('sha1');
 const mime = require('mime-types');
 
 const Mustache = require('mustache');
@@ -15,11 +16,17 @@ function getTimeMs(){
 }
 
 class WrapperServer {
-  constructor(wrappedHttpPort, templatesDirectory, staticDirectory, debugMode = false, 
-      contentProvider = null, downloadSpeedLimit = 1e6, apiCallback = null, webCallback = null) {
+  constructor(wrappedHttpPort, templatesDirectory, staticDirectory, debugMode = false, contentProvider = null, 
+      downloadSpeedLimit = 1e6, downloadPassword = null, apiCallback = null, webCallback = null) {
     this._templates = debugMode ? null : {};
     this._templatesDirectory = templatesDirectory;
     this._staticDirectory = staticDirectory;
+
+    if (downloadPassword){
+      this._downloadPassword = sha1('tanidolizedhoatzin' + downloadPassword);
+    } else {
+      this._downloadPassword = null;
+    }
 
     this._apiCallback = apiCallback;
     this._webCallback = webCallback;
@@ -138,11 +145,20 @@ class WrapperServer {
     }
 
     try {
+      if (this._downloadPassword != null && this._downloadPassword != params['password']){
+        throw new Error(403);
+      }
+
       var filename = null;
 
       if (path.startsWith('/content/car/')){
         var carId = path.substr('/content/car/'.length);
         filename = this._contentProvider.getCarFilename(carId);
+      }
+
+      if (path.startsWith('/content/skin/')){
+        var ids = path.substr('/content/skin/'.length).split('/');
+        filename = this._contentProvider.getSkinFilename(ids[0], ids[1]);
       }
 
       if (path.startsWith('/content/weather/')){
@@ -154,17 +170,13 @@ class WrapperServer {
         filename = this._contentProvider.getTrackFilename();
       }
 
-      if (path.startsWith('/content/trackBase')){
-        filename = this._contentProvider.getTrackBaseFilename();
-      }
-
       if (filename == null){
         throw new Error(404);
       } else {
         this._resDownloadFile(filename, req, res);
       }
     } catch(e) {
-      this._resErrorJson(res, (+e.message|0) || 500, e.stack);
+      this._resErrorJson(res, (+e.message|0) || 500, isNaN(+e.message) ? e.stack : +e.message);
     }
   }
 
@@ -186,7 +198,15 @@ class WrapperServer {
             res.writeHead(304, {
               'Last-Modified': data.lastModified.toUTCString()
             });
+          } else if (data.compressed) {
+            res.writeHead(200, { 
+              'Content-Type': 'application/json',
+              'Content-Encoding': 'gzip',
+              'Last-Modified': data.lastModified.toUTCString()
+            });
+            res.write(data.compressed);
           } else {
+            gzip(req, res);
             res.writeHead(200, { 
               'Content-Type': 'application/json',
               'Last-Modified': data.lastModified.toUTCString()
@@ -241,21 +261,27 @@ class WrapperServer {
       if (pathname.startsWith('/content/')){
         this._processContentRequest(pathname, query, req, res);
       } else if (pathname.startsWith('/api/')){
-        gzip(req, res);
         this._processApiRequest(pathname, query, req, res);
       } else {
         this._processRequest(pathname, query, req, res);
       }
     } catch(e) {
-      switch (+e.message){
-        case 404:
-          this._resErrorHtml(res, +e.message, 'File Not Found', 'Make sure path is correct.');
-          break;
-        case 500:
-          this._resErrorHtml(res, +e.message, 'Internal Error', 'Try again later?');
-          break;
-        default:
-          this._resErrorHtml(res, 500, 'Internal Error', e.message + '\n' + e.stack);
+      try {
+        switch (+e.message){
+          case 404:
+            this._resErrorHtml(res, +e.message, 'File Not Found', 'Make sure path is correct.');
+            break;
+          case 500:
+            this._resErrorHtml(res, +e.message, 'Internal Error', 'Try again later?');
+            break;
+          default:
+            this._resErrorHtml(res, 500, 'Internal Error', e.message + '\n' + e.stack);
+        }
+      } catch (_){
+        console.warn(e);
+        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.write(`<h1>${500} Internal Error</h1><pre>${e.stack}</pre>`);
+        res.end();        
       }
     }
   }

@@ -2,3 +2,8 @@
 <p>This is an AC server, which is running in a sort of wrapping thing providing more information about current race state.</p>
 <p>Server name: {{name}}.<br>
 Connected users: {{clients}}.</p>
+<a class="cm_link" href="acmanager://race/online/join?ip=IP&httpPort={{cport}}">Join</a>
+<script>
+  var a = document.querySelector('.cm_link');
+  a.href = a.href.replace('IP', location.hostname);
+</script>
