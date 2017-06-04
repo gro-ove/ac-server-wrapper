@@ -34,9 +34,14 @@ class WrapperServer {
     this._server = http.createServer(this._serverCallback.bind(this));
     this._server.timeout = 60e3; // 1 minute
     this._server.listen(wrappedHttpPort);
+    this._server.on('error', err => {
+      console.warn(err);
+    });
 
     this._contentProvider = contentProvider;
     this._downloadSpeedLimit = downloadSpeedLimit;
+
+    console.log('Wrapping server started: ' + wrappedHttpPort);
   }
 
   _getStaticFilename(staticName){
@@ -128,9 +133,15 @@ class WrapperServer {
       }
 
       if (this._downloadSpeedLimit){
-        readStream.pipe(new Throttle(this._downloadSpeedLimit)).pipe(res);
+        readStream.pipe(new Throttle(this._downloadSpeedLimit)).pipe(res).on('error', err => {
+          console.warn(err);
+          res.end();
+        });
       } else {
-        readStream.pipe(res);
+        readStream.pipe(res).on('error', err => {
+          console.warn(err);
+          res.end();
+        });
       }
       return;
     }
@@ -254,7 +265,19 @@ class WrapperServer {
   }
 
   _serverCallback(req, res){
+    console.log(req.url);
+
     try {
+      req.on('error', err => {
+        console.error(err.stack);
+        res.statusCode = 400;
+        res.end();
+      });
+
+      res.on('error', err => {
+        console.error(err.stack);
+      });
+
       var parsed = url.parse(req.url, true);
       var pathname = decodeURIComponent(parsed.pathname);
       var query = parsed.query || {};

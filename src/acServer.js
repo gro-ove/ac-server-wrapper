@@ -7,11 +7,12 @@ const sha1 = require('sha1');
 const zlib = require('zlib');
 
 const AcUtils = require('./acUtils');
+const SEPARATOR = 'ℹ';
 
 function fixName(presetFilename, wrappedHttpPort){
   var resultFilename = presetFilename + '.tmp';
   var data = '' + fs.readFileSync(presetFilename);
-  data = data.replace(/\bNAME=(.+)/, (_, n) => _ + ' 🛈' + wrappedHttpPort);
+  data = data.replace(/\bNAME=(.+)/, (_, n) => `${_} ${SEPARATOR}${wrappedHttpPort}`);
   fs.writeFileSync(resultFilename, data);
   return resultFilename;
 }
@@ -34,11 +35,20 @@ function getGeoParams(callback){
     res.setEncoding('utf8');
     res.on('data', chunk => str += chunk);
     res.on('end', () => callback && callback(JSON.parse(str)));
+    res.on('error', err => {
+      console.warn('FATAL ERROR, REQUEST TO GET GEO PARAMS FAILED:');
+      console.warn(err);
+      process.exit(1);
+    });
   });
 }
 
 const AC_DENIED = 0;
 const AC_FORCED = 2;
+
+function round(v){
+  return Math.round(v * 10) / 10;
+}
 
 class AcServer {
   constructor(executableFilename, presetDirectory, wrappedHttpPort, verbose = false, readyCallback = null, 
@@ -162,44 +172,57 @@ class AcServer {
 
     // track grip changed
     if (/^DynamicTrack: current_grip= (.+)  transfer= (.+)  sessiongrip= (.+)/.test(d)){
-      this._grip = +RegExp.$3;
-      this._gripTransfer = +RegExp.$2;
+      this._grip = round(+RegExp.$3);
+      this._gripTransfer = round(+RegExp.$2);
       console.log(`Grip changed: ${this._grip}%, ${this._gripTransfer}%`);
+      return;
     }
 
     // weather changed
     if (/^Weather update\. Ambient: (.+) Road: (.+) Graphics: (.+)/.test(d)){
-      this._ambientTemperature = +RegExp.$1;
-      this._roadTemperature = +RegExp.$2;
+      this._ambientTemperature = round(+RegExp.$1);
+      this._roadTemperature = round(+RegExp.$2);
       this._currentWeatherId = RegExp.$3;
       console.log(`Weather changed: ${this._ambientTemperature}° C, ${this._roadTemperature}° C, ${this._currentWeatherId}`);
+      return;
     }
 
     // wind changed
     if (/Wind update\. Speed: (.+) Direction: (.+)/.test(d)){
-      this._windSpeed = +RegExp.$1;
-      this._windDirection = +RegExp.$2;
+      this._windSpeed = round(+RegExp.$1);
+      this._windDirection = round(+RegExp.$2);
       console.log(`Wind changed: ${this._windSpeed}km/h, ${this._windDirection}°`);
+      return;
     }
 
     // current session changed
     if (/^SENDING session type : (.+)/.test(d)){
       this._currentSessionType = +RegExp.$1;
+      console.log(`Current session type: ${this._currentSessionType}`);
+      return;
     }
 
     // player is connecting, let’s try to keep GUID
     if (/^Looking for available slot by name for GUID (\S+)/.test(d)){
       this._connectingGuid = RegExp.$1;
+      console.log(`Connecting: ${this._connectingGuid}`);
+      return;
     }
 
     // player is connecting, let’s try to keep GUID
     if (/^Slot found at index (.+)/.test(d)){
-      this._slots[+RegExp.$1|0] = this._connectingGuid;
-      this._slotsIds[+RegExp.$1|0] = guidToId(this._connectingGuid);
+      var slot = +RegExp.$1|0;
+      this._slots[slot] = this._connectingGuid;
+      this._slotsIds[slot] = guidToId(this._connectingGuid);
+      console.log(`Connected: ${this._connectingGuid} (slot: ${slot})`);
+      return;
     }
 
     // just in case, data might have changed
-    this._dirty = true;
+    if (!this._dirty){
+      this._dirty = true;
+      console.log('Output might changed, set to dirty');
+    }
   }
 
   _request(url, parseJson, callback){    
@@ -218,6 +241,11 @@ class AcServer {
       res.setEncoding('utf8');
       res.on('data', chunk => str += chunk);
       res.on('end', () => callback && callback(parseJson ? JSON.parse(str) : str));
+      res.on('error', err => {
+        console.warn('FATAL ERROR, REQUEST TO ACSERVER FAILED:');
+        console.warn(err);
+        process.exit(1);
+      });
     });
   }
 
@@ -247,7 +275,7 @@ class AcServer {
           information.players = players;
         }
 
-        var index = information.name.lastIndexOf('🛈');
+        var index = information.name.lastIndexOf(SEPARATOR);
         if (index !== -1){
           information.name = information.name.substr(0, index).trim();
         }

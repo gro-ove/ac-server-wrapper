@@ -6,7 +6,7 @@ const path = require('path');
 var argv = require('minimist')(process.argv.slice(2));
 var thisName = 'acServerWrapper.js';
 var isWin = /^win/.test(process.platform);
-var defaultAcServerName = isWin ? 'AcServer.exe' : 'AcServer';
+var defaultAcServerName = isWin ? 'AcServer.exe' : './acServer';
 
 if (argv.h || argv.help){
   console.warn(`Usage: node ${thisName} [--executable=AC SERVER] <PRESET DIRECTORY>
