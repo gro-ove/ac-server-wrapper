@@ -52,8 +52,9 @@ if (fs.existsSync(paramsFilename)){
     port: 80,
     verboseLog: true,
     doNotCacheTemplates: false,
+    downloadSpeedLimit: 1e6,
     downloadPasswordOnly: true,
-    downloadSpeedLimit: 1e6
+    publishPasswordChecksum: true,
   };
 }
 
@@ -66,13 +67,13 @@ const ContentProvider = require('./src/contentProvider');
 var contentProvider = new ContentProvider(`${presetDirectory}/cm_content`);
 
 // init AC server starting and watching thing
-var acServer = new AcServer(executableFilename, presetDirectory, paramsObj.port, paramsObj.verboseLog, null, contentProvider);
+var acServer = new AcServer(executableFilename, presetDirectory, contentProvider, paramsObj);
 
 // init custom HTTP-servery thing
-
 var wrapperServer = new WrapperServer(paramsObj.port, 
     templatesDirectory, staticDirectory, paramsObj.doNotCacheTemplates, 
-    contentProvider, paramsObj.downloadSpeedLimit, paramsObj.downloadPasswordOnly ? acServer.getPassword() : null, 
+    contentProvider, paramsObj.downloadSpeedLimit, 
+    paramsObj.downloadPasswordOnly ? acServer.getPassword() : null, 
     (path, params, callback) => {
       if (path == '/api/details'){
         acServer.getResponse(params.guid, callback);

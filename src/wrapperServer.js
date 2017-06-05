@@ -32,7 +32,7 @@ class WrapperServer {
     this._webCallback = webCallback;
 
     this._server = http.createServer(this._serverCallback.bind(this));
-    this._server.timeout = 60e3; // 1 minute
+    this._server.timeout = 5 * 60 * 1e3; // 1 minute
     this._server.listen(wrappedHttpPort);
     this._server.on('error', err => {
       console.warn(err);
@@ -75,7 +75,7 @@ class WrapperServer {
   }
 
   _resErrorHtml(res, code, message, content){
-      res.writeHead(code, { 'Content-Type': 'text/html' });
+      res.writeHead(code, { 'Content-Type': 'text/html; charset=utf-8' });
       res.write(this._html('base', { 
         title: message,
         content: `<h1>${code} ${message}</h1>` + (content ? `<pre>${content}</pre>` : '')
@@ -84,7 +84,7 @@ class WrapperServer {
   }
 
   _resErrorJson(res, code, content){
-      res.writeHead(code, { 'Content-Type': 'application/json' });
+      res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
       res.write(JSON.stringify({ error: content }));
       res.end();
   }
@@ -211,7 +211,7 @@ class WrapperServer {
             });
           } else if (data.compressed) {
             res.writeHead(200, { 
-              'Content-Type': 'application/json',
+              'Content-Type': 'application/json; charset=utf-8',
               'Content-Encoding': 'gzip',
               'Last-Modified': data.lastModified.toUTCString()
             });
@@ -219,7 +219,7 @@ class WrapperServer {
           } else {
             gzip(req, res);
             res.writeHead(200, { 
-              'Content-Type': 'application/json',
+              'Content-Type': 'application/json; charset=utf-8',
               'Last-Modified': data.lastModified.toUTCString()
             });
             res.write(data.json);
@@ -249,7 +249,7 @@ class WrapperServer {
         if (data == null){
           responseError(res, 500, error);
         } else {
-          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
           res.write(this._html('base', { 
             title: 'AC Server',
             content: this._html(templateName, data)
@@ -302,7 +302,7 @@ class WrapperServer {
         }
       } catch (_){
         console.warn(e);
-        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.writeHead(500, { 'Content-Type': 'text/html; charset=utf-8' });
         res.write(`<h1>${500} Internal Error</h1><pre>${e.stack}</pre>`);
         res.end();        
       }

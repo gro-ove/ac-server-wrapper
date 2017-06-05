@@ -25,6 +25,15 @@ function guidToId(guid){
   return sha1('antarcticfurseal' + guid);
 }
 
+function passwordChecksum(serverName, password){
+  var index = serverName.lastIndexOf(SEPARATOR);
+  if (index !== -1){
+    serverName = serverName.substr(0, index).trim();
+  }
+
+  return sha1('apatosaur' + serverName + password);
+}
+
 function getGeoParams(callback){
   http.get({
     hostname: 'ip-api.com',
@@ -51,8 +60,9 @@ function round(v){
 }
 
 class AcServer {
-  constructor(executableFilename, presetDirectory, wrappedHttpPort, verbose = false, readyCallback = null, 
-      contentProvider = null) {
+  constructor(executableFilename, presetDirectory, contentProvider, paramsObj, readyCallback = null) {
+    // get geo params to find out IP, country and city (thus, providing full, 
+    // as from kunos server, information directly)
     getGeoParams(geo => {
       this._baseIp = geo.query;
       this._city = geo.city;
@@ -61,22 +71,13 @@ class AcServer {
       this._dirty = true;
     });
 
-    var configFilename = fixName(`${presetDirectory}/server_cfg.ini`, wrappedHttpPort);
-    var configEntryListFilename = `${presetDirectory}/entry_list.ini`;
-    this._process = spawn(executableFilename, [ '-c', configFilename, '-e', configEntryListFilename ]);
-
-    var extra = `${presetDirectory}/cm_wrapper_params.json`;
-    if (fs.existsSync(extra)){
-      eval('this._extra = ' + fs.readFileSync(extra));
-    } else {
-      this._extra = {};
-    }
-
-    this._config = AcUtils.parseIni('' + fs.readFileSync(configFilename));
-    this._configEntryList = AcUtils.parseIni('' + fs.readFileSync(configEntryListFilename));
+    // saving some values from params
+    this._wrappedHttpPort = paramsObj.port;
+    this._downloadPasswordOnly = paramsObj.downloadPasswordOnly;
+    this._description = paramsObj.description;
     this._contentProvider = contentProvider;
 
-    this._wrappedHttpPort = wrappedHttpPort;
+    // basic values for internal fields
     this._httpPort = -1;
     this._dirty = true;
     this._informationDirty = true;
@@ -85,6 +86,14 @@ class AcServer {
 
     this._slots = {};
     this._slotsIds = {};
+
+    // filenames to work with
+    var configFilename = fixName(`${presetDirectory}/server_cfg.ini`, this._wrappedHttpPort);
+    var configEntryListFilename = `${presetDirectory}/entry_list.ini`;
+
+    // reading params from config
+    this._config = AcUtils.parseIni('' + fs.readFileSync(configFilename));
+    this._configEntryList = AcUtils.parseIni('' + fs.readFileSync(configEntryListFilename));
 
     this._guidsMode = this._config['BOOK'] != null;
     for (var i = 0, section; section = this._configEntryList['CAR_' + i]; i++){
@@ -97,6 +106,7 @@ class AcServer {
 
     var serverSection = this._config['SERVER'];
     this._frequency = +serverSection['CLIENT_SEND_INTERVAL_HZ'];
+    this._maxContactsPerKm = +serverSection['MAX_CONTACTS_PER_KM'];
     this._trackId = serverSection['TRACK'];
     this._password = serverSection['PASSWORD'] || null;
     this._assists = {
@@ -124,6 +134,17 @@ class AcServer {
         .map(x => +(this._config[x] || {})['TIME'] * 60 /* we need to return seconds to clients */)
         .filter(x => x > 0 && !isNaN(x));
     
+    // publish password if needed
+    this._publishPasswordChecksum = paramsObj.publishPasswordChecksum && this._password ? 
+        [ 
+          passwordChecksum(serverSection['NAME'], this._password), 
+          passwordChecksum(serverSection['NAME'], serverSection['ADMIN_PASSWORD']) 
+        ] : null;
+    
+    // starting AC server…
+    var verbose = paramsObj.verboseLog;
+
+    this._process = spawn(executableFilename, [ '-c', configFilename, '-e', configEntryListFilename ]);
     this._process.stdout.on('data', (data) => {
       var s = ('' + data).trim();
 
@@ -291,11 +312,26 @@ class AcServer {
         // stuff to get missing content
         if (this._contentProvider){
           information.content = this._contentProvider.getAvaliableList();
+          if (information.content){
+            if (this._downloadPasswordOnly){
+              information.content.password = true;
+            } else {
+              delete information.content.password;
+            }
+          }
         }
 
         // adding new ones
         if (this._trackId != information.track){
           information.trackBase = this._trackId;
+        }
+
+        if (this._publishPasswordChecksum){
+          information.passwordChecksum = this._publishPasswordChecksum;
+        }
+
+        if (this._maxContactsPerKm != -1){
+          information.maxContactsPerKm = this._maxContactsPerKm;
         }
 
         information.city = this._city;
@@ -309,8 +345,9 @@ class AcServer {
         information.windDirection = this._windDirection;
         information.grip = this._grip;
         information.gripTransfer = this._gripTransfer;
-        if (this._extra.description){
-          information.description = this._extra.description;
+
+        if (this._description){
+          information.description = this._description;
         }
 
         this._data = information;
