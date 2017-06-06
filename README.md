@@ -58,7 +58,7 @@ npm install
 node acServerWrapper.js -e ACSERVERDIR/acServer ACSERVERDIR/presets/PRESET
 ```
 
-*I’m not really familiar with Linux, and with Node.JS, sorry.*
+Also, you could use [forever](https://github.com/foreverjs/forever) to keep the server running in the background for as long as you want. But I’m not really familiar with Linux, and with Node.JS, there might be better ways.
 
 ### In action
 
