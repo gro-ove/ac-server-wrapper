@@ -64,6 +64,7 @@ node acServerWrapper.js -e ACSERVERDIR/acServer ACSERVERDIR/presets/PRESET
 
 - [Server in action (if it still runs)](http://46.173.219.83/);
 - [Provided information](http://46.173.219.83/api/details/);
+- [Server preset example](https://drive.google.com/file/d/0B6GfX1zRa8pOT3pmbVFVdnk3SUU/view?usp=drivesdk);
 - How it looks like in [Content Manager](https://github.com/gro-ove/actools):
 
   ![In action](http://i.imgur.com/oo512t0.png)
