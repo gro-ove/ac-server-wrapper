@@ -49,6 +49,17 @@ Small Node.JS script which wraps around Assetto Corsa server and then caches and
 - Read chat messages?
 - Some sort of Minorating integration?
 
+### Usage (Linux)
+
+```
+git clone https://github.com/gro-ove/ac-server-wrapper.git
+cd ac-server-wrapper
+npm install
+node acServerWrapper.js -e ACSERVERDIR/acServer ACSERVERDIR/presets/PRESET
+```
+
+*I’m not really familiar with Linux, and with Node.JS, sorry.*
+
 ### In action
 
 - [Server in action (if it still runs)](http://46.173.219.83/);
