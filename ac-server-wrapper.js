@@ -41,50 +41,30 @@ var presetDirectory = argv._[0];
 var templatesDirectory = argv.t || argv.templates || `${__dirname}/res/templates`;
 var staticDirectory = argv.s || argv.static || `${__dirname}/res/static`;
 
-// special wrapper params
-var paramsFilename = `${presetDirectory}/cm_wrapper_params.json`;
-var paramsObj;
-
-if (fs.existsSync(paramsFilename)){
-  eval('paramsObj = ' + fs.readFileSync(paramsFilename));
-} else {
-  paramsObj = {
-    port: 80,
-    verboseLog: true,
-    doNotCacheTemplates: false,
-    downloadSpeedLimit: 1e6,
-    downloadPasswordOnly: true,
-    publishPasswordChecksum: true,
-  };
-}
-
 // own usings
-const AcServer = require('./src/acServer');
-const WrapperServer = require('./src/wrapperServer');
-const ContentProvider = require('./src/contentProvider');
+const App = require('./src/App');
 
-// missing content provider
-var contentProvider = new ContentProvider(`${presetDirectory}/cm_content`);
+// temporary fix, just in case
+process.on('uncaughtException', err => {
+  console.error('FATAL ERROR');
+  console.error(err.stack);
+  console.error('PROCESS SHOULD BE RESTARTED');
+  console.error('RIGHT NOW');
+});
 
-// init AC server starting and watching thing
-var acServer = new AcServer(executableFilename, presetDirectory, contentProvider, paramsObj);
+// test recursive packing/unpacking
+// const zip = require('./src/zip-async');
+// zip.pack('content', (err, c) => {
+//   fs.writeFileSync('temp.zip', c);
+//   zip.unpack(c, 'content3', err => {
+//     console.log(err)
+//   });
+// });
 
-// init custom HTTP-servery thing
-var wrapperServer = new WrapperServer(paramsObj.port, 
-    templatesDirectory, staticDirectory, paramsObj.doNotCacheTemplates, 
-    contentProvider, paramsObj.downloadSpeedLimit, 
-    paramsObj.downloadPasswordOnly ? acServer.getPassword() : null, 
-    (path, params, callback) => {
-      if (path == '/api/details'){
-        acServer.getResponse(params.guid, callback);
-      } else {
-        throw new Error(404);
-      }
-    },
-    (path, params, callback) => {
-      if (path == '/'){
-        acServer.getData(params.guid, callback);
-      } else {
-        throw new Error(404);
-      }
-    });
+// run the app!
+try {
+  new App(executableFilename, presetDirectory, templatesDirectory, staticDirectory, true).run();
+} catch (e){
+  console.warn(e);
+  process.exit(1);
+}

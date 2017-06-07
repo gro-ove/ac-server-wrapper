@@ -2,12 +2,16 @@
   "name": "ac-server-wrapper",
   "version": "0.1.2",
   "description": "Wraps around Assetto Corsa server, caches and extends responses",
-  "main": "acServerWrapper.js",
+  "main": "ac-server-wrapper.js",
   "dependencies": {
+    "adm-zip": "^0.4.7",
     "mime-types": "^2.1.13",
     "minimist": "^1.2.0",
+    "mkdirp": "^0.5.1",
     "mustache": "^2.3.0",
     "node-localstorage": "^1.3.0",
+    "recursive-readdir": "^2.2.1",
+    "rimraf": "^2.6.1",
     "sha1": "^1.1.1",
     "throttle": "^1.0.3"
   },

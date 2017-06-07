@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const rimraf = require('rimraf');
 
 function filterEntries(entries){
   var copied = JSON.parse(JSON.stringify(entries))
@@ -38,6 +39,8 @@ class ContentProvider {
     this.filtered = filterEntries(this.entries);
   }
 
+  stop (){}
+
   getAvaliableList(){
     return this.filtered;
   }
@@ -75,5 +78,9 @@ class ContentProvider {
         path.join(this.directory, this.entries.trackBase.file) : null;
   }
 }
+
+ContentProvider.clear = function(directory, callback){
+  rimraf(directory, callback);
+};
 
 module.exports = ContentProvider;

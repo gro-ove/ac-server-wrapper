@@ -1,10 +1,12 @@
 const zlib = require('zlib');
 
+function clientAccepts(req){
+  return /gzip/i.test(req.headers['accept-encoding'] || '');
+}
+
 function gzip(req, res) {
   // check if the client accepts gzip
-  var header = req.headers['accept-encoding'];
-  var accepts = header && /gzip/i.test(header);
-  if (!accepts) return false;
+  if (!clientAccepts(req)) return false;
 
   // store native methods
   var writeHead = res.writeHead;
@@ -46,4 +48,5 @@ function gzip(req, res) {
   return true;
 };
 
+gzip.clientAccepts = clientAccepts;
 module.exports = gzip;

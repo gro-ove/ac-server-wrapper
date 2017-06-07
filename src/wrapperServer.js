@@ -16,32 +16,66 @@ function getTimeMs(){
 }
 
 class WrapperServer {
-  constructor(wrappedHttpPort, templatesDirectory, staticDirectory, debugMode = false, contentProvider = null, 
-      downloadSpeedLimit = 1e6, downloadPassword = null, apiCallback = null, webCallback = null) {
-    this._templates = debugMode ? null : {};
+  constructor(wrappedHttpPort, templatesDirectory, staticDirectory) {
+    // Fancy HTML-server stuff
     this._templatesDirectory = templatesDirectory;
     this._staticDirectory = staticDirectory;
 
+    // Starting a server…
+    this._server = http.createServer(this._serverCallback.bind(this));
+    this._server.timeout = 5 * 60 * 1e3;
+
+    this._server.on('error', err => {
+      console.warn(err);
+    });
+
+    this._server.on('listening', () => {
+      if (this.stopped){
+        this._server.close();
+        this._server = null;
+        this._listening = false;
+      } else {        
+        this._listening = true;
+      }
+    });
+
+    this._server.on('clientError', (err, socket) => {
+      socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+    });
+
+    this._server.listen(wrappedHttpPort);
+    console.log('Wrapping server started: ' + wrappedHttpPort);
+  }
+
+  setApiCallback(apiCallback){
+    this._apiCallback = apiCallback;
+  }
+
+  setWebCallback(webCallback){
+    this._webCallback = webCallback;
+  }
+
+  setContentProvider(contentProvider, downloadSpeedLimit){
+    this._contentProvider = contentProvider;
+    this._downloadSpeedLimit = downloadSpeedLimit;
+  }
+
+  setDownloadPassword(downloadPassword){
     if (downloadPassword){
       this._downloadPassword = sha1('tanidolizedhoatzin' + downloadPassword);
     } else {
       this._downloadPassword = null;
     }
+  }
 
-    this._apiCallback = apiCallback;
-    this._webCallback = webCallback;
+  stop(){
+    if (this._server && this._listening){
+      this._server.close();
+      this._server = null;
+      this._listening = false;
+    }
 
-    this._server = http.createServer(this._serverCallback.bind(this));
-    this._server.timeout = 5 * 60 * 1e3; // 1 minute
-    this._server.listen(wrappedHttpPort);
-    this._server.on('error', err => {
-      console.warn(err);
-    });
-
-    this._contentProvider = contentProvider;
-    this._downloadSpeedLimit = downloadSpeedLimit;
-
-    console.log('Wrapping server started: ' + wrappedHttpPort);
+    this.stopped = true;
   }
 
   _getStaticFilename(staticName){
@@ -53,25 +87,11 @@ class WrapperServer {
   }
 
   _hasTemplate(templateName){
-    if (this._templates && this._templates.hasOwnProperty(templateName)){
-      return true;
-    }
-
     return fs.existsSync(this._getTemplateFilename(templateName));
   }
 
   _html(templateName, data){
-    var template;
-    if (this._templates && this._templates.hasOwnProperty(templateName)){
-      template = this._templates[templateName];
-    } else {
-      template = '' + fs.readFileSync(this._getTemplateFilename(templateName));
-      if (this._templates){
-        this._templates[templateName] = template;
-      }
-    }
-
-    return Mustache.render(template, data);
+    return Mustache.render('' + fs.readFileSync(this._getTemplateFilename(templateName)), data);
   }
 
   _resErrorHtml(res, code, message, content){
@@ -149,7 +169,25 @@ class WrapperServer {
     throw new Error(404);
   }
 
-  _processContentRequest(path, params, req, res){
+  _resDownloadBuffer(buffer, req, res){ 
+    if (buffer != null){
+      // TODO: gzip?
+      res.writeHead(200, {
+        'Content-Length': buffer.length, 
+        // 'Content-Type': 'application/zip'
+        'Content-Type': 'application/octet-stream'
+      });
+
+      res.write(buffer);
+      res.end();
+
+      return;
+    }
+
+    throw new Error(404);
+  }
+
+  _processContentRequest(pathname, params, req, res){
     if (!this._contentProvider){
       _resErrorJson(res, 500, 'Content provider is not set');
       return;
@@ -162,22 +200,22 @@ class WrapperServer {
 
       var filename = null;
 
-      if (path.startsWith('/content/car/')){
-        var carId = path.substr('/content/car/'.length);
+      if (pathname.startsWith('/content/car/')){
+        var carId = pathname.substr('/content/car/'.length);
         filename = this._contentProvider.getCarFilename(carId);
       }
 
-      if (path.startsWith('/content/skin/')){
-        var ids = path.substr('/content/skin/'.length).split('/');
+      if (pathname.startsWith('/content/skin/')){
+        var ids = pathname.substr('/content/skin/'.length).split('/');
         filename = this._contentProvider.getSkinFilename(ids[0], ids[1]);
       }
 
-      if (path.startsWith('/content/weather/')){
-        var weatherId = path.substr('/content/weather/'.length);
+      if (pathname.startsWith('/content/weather/')){
+        var weatherId = pathname.substr('/content/weather/'.length);
         filename = this._contentProvider.getWeatherFilename(weatherId);
       }
 
-      if (path.startsWith('/content/track')){
+      if (pathname.startsWith('/content/track')){
         filename = this._contentProvider.getTrackFilename();
       }
 
@@ -187,11 +225,12 @@ class WrapperServer {
         this._resDownloadFile(filename, req, res);
       }
     } catch(e) {
-      this._resErrorJson(res, (+e.message|0) || 500, isNaN(+e.message) ? e.stack : +e.message);
+      console.warn(e);
+      this._resErrorJson(res, (+e.message|0) || 500, (+e.message|0) || e.stack);
     }
   }
 
-  _processApiRequest(path, params, req, res){
+  _processApiRequest(pathname, params, req, res){
     if (!this._apiCallback){
       _resErrorJson(res, 500, 'API callback is not set');
       return;
@@ -199,30 +238,44 @@ class WrapperServer {
 
     try {
       var t = getTimeMs();
-      this._apiCallback(path, params, (data, error) => {
+      this._apiCallback(pathname, params, (data, error) => {
         if (data == null){
-          _resErrorJson(res, 500, error);
+          this._resErrorJson(res, 500, error);
+        } else if (typeof data === 'string') {
+          this._resDownloadFile(data, req, res);
+        } else if (data instanceof Buffer) {
+          this._resDownloadBuffer(data, req, res);
+        } else if (data instanceof Error) {
+          this._resErrorJson(res, (+data.message|0) || 500, (+data.message|0) || data.stack);
         } else {
-          var lastDate = req.headers['if-modified-since'];
-
+          var lastDate = data.lastModified != null ? req.headers['if-modified-since'] : null;
           if (lastDate != null && Math.abs(new Date(lastDate).getTime() - data.lastModified.getTime()) < 1e3){
             res.writeHead(304, {
               'Last-Modified': data.lastModified.toUTCString()
             });
-          } else if (data.compressed) {
+          } else if (data.compressed && gzip.clientAccepts(req)) {
             res.writeHead(200, { 
               'Content-Type': 'application/json; charset=utf-8',
               'Content-Encoding': 'gzip',
-              'Last-Modified': data.lastModified.toUTCString()
+              'Last-Modified': (data.lastModified || new Date).toUTCString()
             });
             res.write(data.compressed);
-          } else {
+          } else if (typeof data.json === 'string') {
             gzip(req, res);
             res.writeHead(200, { 
               'Content-Type': 'application/json; charset=utf-8',
-              'Last-Modified': data.lastModified.toUTCString()
+              'Last-Modified': (data.lastModified || new Date).toUTCString()
             });
             res.write(data.json);
+          } else if (data.data) {
+            // gzip(req, res);
+            res.writeHead(200, { 
+              'Content-Type': 'application/json; charset=utf-8',
+              'Last-Modified': (data.lastModified || new Date).toUTCString()
+            });
+            res.write(JSON.stringify(data.data));
+          } else {
+            res.writeHead(204);
           }
 
           res.end();
@@ -231,7 +284,8 @@ class WrapperServer {
         console.log(`  -- serve time: ${Math.round((getTimeMs() - t) * 100) / 100} ms --`);
       });
     } catch(e) {
-      this._resErrorJson(res, (+e.message|0) || 500, e.stack);
+      console.warn(e);
+      this._resErrorJson(res, (+e.message|0) || 500, (+e.message|0) || e.stack);
     }
   }
 
@@ -265,6 +319,7 @@ class WrapperServer {
   }
 
   _serverCallback(req, res){
+    // TODO: head support!
     console.log(req.url);
 
     try {
@@ -280,13 +335,32 @@ class WrapperServer {
 
       var parsed = url.parse(req.url, true);
       var pathname = decodeURIComponent(parsed.pathname);
-      var query = parsed.query || {};
-      if (pathname.startsWith('/content/')){
-        this._processContentRequest(pathname, query, req, res);
-      } else if (pathname.startsWith('/api/')){
-        this._processApiRequest(pathname, query, req, res);
+      var params = parsed.query || {};
+
+      if (!params._method){
+        params._method = req.method;
+      }
+
+      var next = () => {
+        if (pathname.startsWith('/content/')){
+          this._processContentRequest(pathname, params, req, res);
+        } else if (pathname.startsWith('/api/')){
+          this._processApiRequest(pathname, params, req, res);
+        } else {
+          this._processRequest(pathname, params, req, res);
+        }
+      };
+
+      if (req.method == 'POST' || req.method == 'PUT' || req.method == 'PATCH'){
+        var body = [];
+        req.on('data', chunk => {
+          body.push(chunk);
+        }).on('end', () => {
+          params._data = Buffer.concat(body);
+          next();
+        });
       } else {
-        this._processRequest(pathname, query, req, res);
+        next();
       }
     } catch(e) {
       try {

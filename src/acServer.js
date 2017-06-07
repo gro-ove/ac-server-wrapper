@@ -1,3 +1,7 @@
+// This thing controls AC server — starts it, watches its STDOUT, collects information,
+// sends requests and prepares extended data for clients
+
+// Common usings
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
@@ -6,9 +10,13 @@ const spawn = require('child_process').spawn;
 const sha1 = require('sha1');
 const zlib = require('zlib');
 
-const AcUtils = require('./acUtils');
-const SEPARATOR = 'ℹ';
+// Own usings
+const AcUtils = require('./AcUtils');
+const geoParams = require('./geo-params');
 
+// This function will clone server_cfg.ini while adding specific postfix to its name.
+// Postfix contains the number of the port wrapping server is running on.
+const SEPARATOR = 'ℹ';
 function fixName(presetFilename, wrappedHttpPort){
   var resultFilename = presetFilename + '.tmp';
   var data = '' + fs.readFileSync(presetFilename);
@@ -17,14 +25,21 @@ function fixName(presetFilename, wrappedHttpPort){
   return resultFilename;
 }
 
+// If data doesn’t change too often, why not compress it only once?
 function compress(strData){
   return zlib.gzipSync(new Buffer(strData, 'utf8'));
 }
 
+// We can’t really show players GUIDs to other players, might be some sort of
+// security issues. But it would be nice to be able to identificate players properly,
+// and not just by always changing names.
 function guidToId(guid){
   return sha1('antarcticfurseal' + guid);
 }
 
+// Checksum for passwords, allowing to determine if password is correct on client-side.
+// Can’t see anything wrong with this approach, to be honest, especially considering that
+// server name is used as a salt as well. 
 function passwordChecksum(serverName, password){
   var index = serverName.lastIndexOf(SEPARATOR);
   if (index !== -1){
@@ -34,50 +49,32 @@ function passwordChecksum(serverName, password){
   return sha1('apatosaur' + serverName + password);
 }
 
-function getGeoParams(callback){
-  http.get({
-    hostname: 'ip-api.com',
-    path: '/json',
-    agent: null
-  }, res => {
-    var str = '';
-    res.setEncoding('utf8');
-    res.on('data', chunk => str += chunk);
-    res.on('end', () => callback && callback(JSON.parse(str)));
-    res.on('error', err => {
-      console.warn('FATAL ERROR, REQUEST TO GET GEO PARAMS FAILED:');
-      console.warn(err);
-      process.exit(1);
-    });
-  });
-}
-
-const AC_DENIED = 0;
-const AC_FORCED = 2;
-
+// Nicely rounding floating-point numbers — client doesn’t need to know that temperature 
+// is exactly 21.547613°.
 function round(v){
   return Math.round(v * 10) / 10;
 }
 
 class AcServer {
-  constructor(executableFilename, presetDirectory, contentProvider, paramsObj, readyCallback = null) {
-    // get geo params to find out IP, country and city (thus, providing full, 
+  constructor(executableFilename, presetDirectory, paramsObj, readyCallback = null) {
+    // Get geo params to find out IP, country and city (thus, providing full, 
     // as from kunos server, information directly)
-    getGeoParams(geo => {
-      this._baseIp = geo.query;
+    geoParams(geo => {
+      if (this.stopped) return;
+      console.log(geo);
+      this._baseIp = geo.ip;
       this._city = geo.city;
       this._country = geo.country;
       this._countryCode = geo.countryCode;
       this._dirty = true;
     });
 
-    // saving some values from params
+    // Saving some values from params
     this._wrappedHttpPort = paramsObj.port;
     this._downloadPasswordOnly = paramsObj.downloadPasswordOnly;
     this._description = paramsObj.description;
-    this._contentProvider = contentProvider;
 
-    // basic values for internal fields
+    // Basic values for internal fields
     this._httpPort = -1;
     this._dirty = true;
     this._informationDirty = true;
@@ -87,11 +84,11 @@ class AcServer {
     this._slots = {};
     this._slotsIds = {};
 
-    // filenames to work with
+    // Filenames to work with
     var configFilename = fixName(`${presetDirectory}/server_cfg.ini`, this._wrappedHttpPort);
     var configEntryListFilename = `${presetDirectory}/entry_list.ini`;
 
-    // reading params from config
+    // Reading params from config
     this._config = AcUtils.parseIni('' + fs.readFileSync(configFilename));
     this._configEntryList = AcUtils.parseIni('' + fs.readFileSync(configEntryListFilename));
 
@@ -109,6 +106,7 @@ class AcServer {
     this._maxContactsPerKm = +serverSection['MAX_CONTACTS_PER_KM'];
     this._trackId = serverSection['TRACK'];
     this._password = serverSection['PASSWORD'] || null;
+    this._adminPassword = serverSection['ADMIN_PASSWORD'] || null;
     this._assists = {
       absState: +serverSection['ABS_ALLOWED'],
       tcState: +serverSection['TC_ALLOWED'],
@@ -134,15 +132,17 @@ class AcServer {
         .map(x => +(this._config[x] || {})['TIME'] * 60 /* we need to return seconds to clients */)
         .filter(x => x > 0 && !isNaN(x));
     
-    // publish password if needed
+    // Publish password if needed
     this._publishPasswordChecksum = paramsObj.publishPasswordChecksum && this._password ? 
         [ 
           passwordChecksum(serverSection['NAME'], this._password), 
-          passwordChecksum(serverSection['NAME'], serverSection['ADMIN_PASSWORD']) 
+          passwordChecksum(serverSection['NAME'], this._adminPassword) 
         ] : null;
     
-    // starting AC server…
+    // Starting AC server…
     var verbose = paramsObj.verboseLog;
+
+    this._log = { entries: [], lastModified: null };
 
     this._process = spawn(executableFilename, [ '-c', configFilename, '-e', configEntryListFilename ]);
     this._process.stdout.on('data', (data) => {
@@ -152,36 +152,78 @@ class AcServer {
         console.log(`stdout: ${s.replace(/\n/g, '\n        ')}`);
       }
 
+      if (this.stopped) return;
+
       var l = s.split('\n');
+      var a = false;
+
       for (var i = 0; i < l.length; i++){
         var p = l[i].trim();
-        p && this._processData(p);
+
+        if (p){
+          this._processData(p);
+          a = true;
+
+          if (this._log.entries.length > 110){
+            this._log.entries = this._log.entries.slice(this._log.entries.length - 100);
+          }
+
+          this._log.entries.push(p);
+        }
+      }
+
+      if (a){
+        this._log.lastModified = new Date();
       }
     });
 
-    this._process.stderr.on('data', (data) => {
-      if (verbose){
+    if (verbose){
+      this._process.stderr.on('data', (data) => {
         console.log(`stderr: ${('' + data).trim().replace(/\n/g, '\n        ')}`);
-      }
-    });
+      });
+    }
 
     this._process.on('close', (code) => {
+      if (this.stopped) return;
       console.log(`AC server exited with code ${code}`);
     });
+  }
+
+  setContentProvider(contentProvider, downloadSpeedLimit){
+    this._contentProvider = contentProvider;
+  }
+
+  stop(){
+    if (this._process){
+      this._process.kill();
+      this._process = null;
+    }
+
+    this.stopped = true;
+  }
+
+  getLog(){
+    return this._log;
   }
 
   getPassword(){
     return this._password;
   }
 
+  getAdminPassword(){
+    return this._adminPassword;
+  }
+
   _processData(d){
-    // ignore if…
+    if (this.stopped) return;
+
+    // Ignore if…
     if (d.startsWith('PAGE: ') || d.startsWith('Serve JSON took') || // page requested
         d == 'REQ' || d.startsWith('{')){ // some random noise
       return;
     }
 
-    // http server started
+    // HTTP-server started
     if (/^Starting HTTP server on port  (\d+)/.test(d)){
       this._httpPort = +RegExp.$1;
       console.log(`AC server HTTP port: ${this._httpPort}`);
@@ -191,7 +233,7 @@ class AcServer {
       }
     }
 
-    // track grip changed
+    // Track grip changed
     if (/^DynamicTrack: current_grip= (.+)  transfer= (.+)  sessiongrip= (.+)/.test(d)){
       this._grip = round(+RegExp.$3);
       this._gripTransfer = round(+RegExp.$2);
@@ -199,7 +241,7 @@ class AcServer {
       return;
     }
 
-    // weather changed
+    // Weather changed
     if (/^Weather update\. Ambient: (.+) Road: (.+) Graphics: (.+)/.test(d)){
       this._ambientTemperature = round(+RegExp.$1);
       this._roadTemperature = round(+RegExp.$2);
@@ -208,7 +250,7 @@ class AcServer {
       return;
     }
 
-    // wind changed
+    // Wind changed
     if (/Wind update\. Speed: (.+) Direction: (.+)/.test(d)){
       this._windSpeed = round(+RegExp.$1);
       this._windDirection = round(+RegExp.$2);
@@ -216,21 +258,21 @@ class AcServer {
       return;
     }
 
-    // current session changed
+    // Current session changed
     if (/^SENDING session type : (.+)/.test(d)){
       this._currentSessionType = +RegExp.$1;
       console.log(`Current session type: ${this._currentSessionType}`);
       return;
     }
 
-    // player is connecting, let’s try to keep GUID
+    // Player is connecting, let’s try to keep GUID
     if (/^Looking for available slot by name for GUID (\S+)/.test(d)){
       this._connectingGuid = RegExp.$1;
       console.log(`Connecting: ${this._connectingGuid}`);
       return;
     }
 
-    // player is connecting, let’s try to keep GUID
+    // Player is connecting, let’s try to keep GUID
     if (/^Slot found at index (.+)/.test(d)){
       var slot = +RegExp.$1|0;
       this._slots[slot] = this._connectingGuid;
@@ -239,7 +281,7 @@ class AcServer {
       return;
     }
 
-    // just in case, data might have changed
+    // Just in case, data might have changed
     if (!this._dirty){
       this._dirty = true;
       console.log('Output might changed, set to dirty');
@@ -247,6 +289,11 @@ class AcServer {
   }
 
   _request(url, parseJson, callback){    
+    if (this.stopped){
+      callback && callback(null, 'AC server stopped');
+      return;
+    }
+
     if (this._httpPort == -1){
       callback && callback(null, 'AC server is not running');
       return;
@@ -267,10 +314,27 @@ class AcServer {
         console.warn(err);
         process.exit(1);
       });
+    }).on('error', err => {
+      console.warn('FATAL ERROR, REQUEST TO ACSERVER FAILED:');
+      console.warn(err);
+      process.exit(1);
     });
   }
 
+  getInformation(callback){    
+    this._request('/INFO', true, callback);
+  }
+
+  getPlayers(callback){
+    this._request('/JSON|-1', true, callback);
+  }
+
   _updateData(callback){
+    if (this.stopped){
+      callback && callback(null, 'AC server stopped');
+      return;
+    }
+
     this.getInformation((information, error) => {
       if (information == null){
         callback && callback(null, error);
@@ -284,7 +348,7 @@ class AcServer {
             car.ID = this._slotsIds[i];
 
             if (this._guidsMode){
-              // we deliberately replace true/false flag by actual player GUID — this way we’ll be able
+              // We deliberately replace true/false flag by actual player GUID — this way we’ll be able
               // to quickly replace it back to either true or false depending on client GUID and won’t
               // have to rebuild whole JSON string
               car.IsRequestedGUID = 'temporary_guid_is_here_' + this._slots[i] + '_end';
@@ -301,7 +365,7 @@ class AcServer {
           information.name = information.name.substr(0, index).trim();
         }
 
-        // fixing some wrong properties
+        // Fixing some wrong properties
         information.ip = this._baseIp || "";
         if (this._country && this._countryCode){
           information.country = [ this._country, this._countryCode ];
@@ -309,7 +373,7 @@ class AcServer {
         information.session = this._currentSessionType;
         information.durations = this._durations;
 
-        // stuff to get missing content
+        // Stuff to get missing content
         if (this._contentProvider){
           information.content = this._contentProvider.getAvaliableList();
           if (information.content){
@@ -321,7 +385,7 @@ class AcServer {
           }
         }
 
-        // adding new ones
+        // Adding new ones
         if (this._trackId != information.track){
           information.trackBase = this._trackId;
         }
@@ -369,6 +433,11 @@ class AcServer {
       return;
     }
 
+    if (this.stopped){
+      callback && callback(null, 'AC server stopped');
+      return;
+    }
+
     if (!this._dirty){
       callback && callback(this._data);
       return;
@@ -384,8 +453,8 @@ class AcServer {
     })
   }
 
-  fixGuid(userGuid, data){
-    // 'temporary_guid_is_here_' + this._slots[i] + '_end'
+  // This way is a bit faster than rebuilding and recompressing JSON each time
+  _fixGuid(userGuid, data){
     return data.replace(/"IsRequestedGUID":"temporary_guid_is_here_([^"]+)_end"/g, (_, id) => {
       return id == userGuid ? '"IsRequestedGUID":true' : '"IsRequestedGUID":false';
     });
@@ -397,11 +466,17 @@ class AcServer {
       return;
     }
 
+    if (this.stopped){
+      callback && callback(null, 'AC server stopped');
+      return;
+    }
+
     if (!this._dirty){
       callback && callback(this._guidsMode ? {
-        json: this.fixGuid(userGuid, this._dataJson),
+        json: this._fixGuid(userGuid, this._dataJson),
         lastModified: this._dataLastModified
       } : {
+        json: this._dataJson,
         compressed: this._dataGzip,
         lastModified: this._dataLastModified
       });
@@ -415,21 +490,14 @@ class AcServer {
       }
 
       callback && callback(this._guidsMode ? { 
-        json: this.fixGuid(userGuid, this._dataJson),
+        json: this._fixGuid(userGuid, this._dataJson),
         lastModified: this._dataLastModified
       } : {
+        json: this._dataJson,
         compressed: this._dataGzip,
         lastModified: this._dataLastModified
       });
     })
-  }
-
-  getInformation(callback){    
-    this._request('/INFO', true, callback);
-  }
-
-  getPlayers(callback){
-    this._request('/JSON|-1', true, callback);
   }
 }
 
