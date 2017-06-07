@@ -1,6 +1,16 @@
 # ac-server-wrapper
 Small Node.JS script which wraps around Assetto Corsa server and then caches and extends responses.
 
+### TODO
+
+- Remote management;
+- CM remote management integration;
+- Some Windows wrapper for easier management;
+- Optional skins-from-clients upload?
+- Some configs management tool?
+- Read chat messages?
+- Some sort of Minorating integration?
+
 ### Features
 
 - Returns all available data in one HTTP-request;
@@ -40,14 +50,6 @@ Small Node.JS script which wraps around Assetto Corsa server and then caches and
 - Runs a proper fully customizable (with both templates and static files) web-server as well, as a fancy landing page.
 
 - Full Linux support;
-
-### TODO
-
-- Optional skins-from-clients upload;
-- Some Windows wrapper for easier management;
-- Some configs management tool?
-- Read chat messages?
-- Some sort of Minorating integration?
 
 ### Usage (Linux)
 
