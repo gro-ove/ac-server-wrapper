@@ -3,10 +3,11 @@ Small Node.JS script which wraps around Assetto Corsa server and then caches and
 
 ### TODO
 
+- UI configuration thing;
 - Remote management;
 - CM remote management integration;
 - Some Windows wrapper for easier management;
-- Optional skins-from-clients upload?
+- Optional skins-from-clients upload (for servers working in booking mode)?
 - Some configs management tool?
 - Read chat messages?
 - Some sort of Minorating integration?
@@ -51,16 +52,94 @@ Small Node.JS script which wraps around Assetto Corsa server and then caches and
 
 - Full Linux support;
 
-### Usage (Linux)
+### Usage
+
+##### Requirements
+
+- Node.JS (≥6.9.1, since I use some relatively new JS things);
+- NPM package manager.
+
+For Windows, you can get both of them (they are shipped packed) [here](https://nodejs.org/en/).
+
+##### Installation
 
 ```
-git clone https://github.com/gro-ove/ac-server-wrapper.git
-cd ac-server-wrapper
-npm install
-node acServerWrapper.js -e ACSERVERDIR/acServer ACSERVERDIR/presets/PRESET
+npm install ac-server-wrapper -g
 ```
 
-Also, you could use [forever](https://github.com/foreverjs/forever) to keep the server running in the background for as long as you want. But I’m not really familiar with Linux, and with Node.JS, there might be better ways.
+With flag `-g`, this command will make `ac-server-wrapper` available system-wide.
+
+##### Update
+
+```
+npm update ac-server-wrapper -g
+```
+
+Since it’s still very much WIP, please, update it frequently.
+
+##### Configuration
+
+Open server preset’s directory (usually, it’s called something like “SERVER_00”) and add a file `cm_wrapper_params.json`,
+here is an example:
+
+```
+{
+  /* Optional description for clients, */
+  "description": "Server description.",
+
+  /* Port, at which wrapping HTTP-server will be running. Don’t forget to open it. */
+  "port": 8050,
+
+  /* Print AC server output to the log. */
+  "verboseLog": true,
+
+  /* Limit download speed to keep online smooth. Set to 0 to avoid limiting. Just in case,
+   * 1e6 is about 1 MB per second */
+  "downloadSpeedLimit": 1e6,
+
+  /* Do not allow to download content without a password (if set). */
+  "downloadPasswordOnly": true,
+
+  /* Publish password checksum so clients’ software would be able to check if password is valid 
+   * or not without connecting. Checksum is generated using SHA-1 algorithm with a salt, so it should be safe. */
+  "publishPasswordChecksum": true,
+}
+```
+
+To allow clients download missing content, add next to it a directory called `cm_content`, and put inside file `content.json`:
+
+```
+{
+  "cars": {
+    "<CAR_1_ID>": {
+      "version": "0.9.9",
+      …
+      "skins": {
+        "<SKIN_1_ID>": { … }
+      }
+    },
+    {
+    "<CAR_2_ID>": { … }
+  },
+  "weather": {
+    "<WEATHER_1_ID>": { … },
+    "<WEATHER_2_ID>": { … }
+  },
+  "track": { … }
+}
+```
+
+Instead of “…”, either put `"url": "<URL_TO_DOWNLOAD>"` if you want users to download content from somewhere else or `"file": "<FILE_NAME>"` if package with missing thing is located in `cm_content` directory. Property `"version"` is optional.
+
+[Here is a server preset example](https://drive.google.com/file/d/0B6GfX1zRa8pOT3pmbVFVdnk3SUU/view?usp=drivesdk), if needed. Sorry about the inconvinience, some UI is in progress.
+
+##### Running server with prepared preset
+
+```
+acServerWrapper <PATH TO SERVER PRESET>
+```
+
+If you’re running server in some VDS and want to keep it running in background, you could use [forever](https://github.com/foreverjs/forever). But I’m not really familiar with Linux, and with Node.JS, there might be better ways.
 
 ### In action
 
