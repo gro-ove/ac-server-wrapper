@@ -87,7 +87,8 @@ here is an example:
   /* Optional description for clients, */
   "description": "Server description.",
 
-  /* Port, at which wrapping HTTP-server will be running. Don’t forget to open it. */
+  /* Port, at which wrapping HTTP-server will be running. Don’t forget to open it. 
+   * Also, it should be a unique port, not the one from AC server’s config! */
   "port": 8050,
 
   /* Print AC server output to the log. */
@@ -135,11 +136,16 @@ Instead of “…”, either put `"url": "<URL_TO_DOWNLOAD>"` if you want users 
 
 ##### Running server with prepared preset
 
-```
-ac-server-wrapper <PATH TO SERVER PRESET>
-```
+1. Go to server’s directory, the one in which acServer executable is located;
 
-If you’re running server in some VDS and want to keep it running in background, you could use [forever](https://github.com/foreverjs/forever). But I’m not really familiar with Linux, and with Node.JS, there might be better ways.
+  *For Windows, you could either use `cd /D <DIRECTORY PATH>` in any CMD window or open it with Windows Explorer, open context menu
+  while holding Shift and select a specific menu item.*
+  
+2. To start the server, use: `ac-server-wrapper presets/<PRESET ID>` (for example, `ac-server-wrapper presets/SERVER_EXT`);
+
+3. That’s all! Now, server should be running.
+
+If needed, you can run it from any other directory, just don’t forget to specify full path to the preset and acServer executable location with `--executable=<PATH>` argument. Also, if you’re running server in some VDS and want to keep it running in background, you could use [forever](https://github.com/foreverjs/forever). But I’m not really familiar with Linux, and with Node.JS, there might be better ways.
 
 ### In action
 
