@@ -59,18 +59,92 @@ function parseLutValue(value){
       .map(x => [ +x[0], +x[1] ]) : [];
 }
 
-// TODO: rework using CM algorithm as quite fast
-function parseIni(data){
-  return data ? data.split(/\[(?=[A-Z\d_])/).slice(1)
-      .map(x => x.match(/^([A-Z\d_]+)\]([\s\S]+)/))
-      .filter(x => x)
-      .reduce((a, b) => {
-        a[b[1]] = b[2].split('\n')
-            .map(x => x.match(/^\s*(\w+)\s*=\s*([^;]*)/))
-            .filter(x => x)
-            .reduce((a, b) => (a[b[1]] = b[2].trim(), a), {});
-        return a;
-      }, {}) : {};
+function parseIni(data, semicolonsMode = false){
+  var started = -1;
+  var key = null;
+
+  function finish(currentSection, data, nonSpace) {
+    if (key != null) {
+      var value;
+      if (started != -1) {
+        var length = 1 + nonSpace - started;
+        value = length < 0 ? null : data.substr(started, length);
+      } else {
+        value = "";
+      }
+
+      currentSection[key] = value;
+      key = null;
+    }
+
+    started = -1;
+  }
+
+  var result = {};
+  var currentSection = null;
+  var nonSpace = -1;
+
+  for (var i = 0; i < data.length; i++) {
+    var c = data[i];
+    switch (c) {
+      case '[':
+        finish(currentSection, data, nonSpace);
+
+        var s = ++i;
+        if (s == data.length) break;
+        for (; i < data.length && data[i] != ']'; i++) { }
+
+        result[data.substr(s, i - s)] = currentSection = {};
+        break;
+
+      case '\n':
+        finish(currentSection, data, nonSpace);
+        break;
+
+      case '=':
+        if (started != -1 && key == null && currentSection != null) {
+          key = data.substr(started, 1 + nonSpace - started);
+          started = -1;
+        }
+        break;
+
+      case ';':
+        if (semicolonsMode){
+          nonSpace = i;
+          if (started == -1) {
+            started = i;
+          }
+        } else {
+          finish(currentSection, data, nonSpace);
+          for (i++; i < data.length && data[i] != '\n'; i++) { }
+        }
+        break;
+
+      case '/':
+        if (i + 1 < data.length && data[i + 1] == '/') {
+          finish(currentSection, data, nonSpace);
+          for (i++; i < data.length && data[i] != '\n'; i++) { }
+          break;
+        }
+
+      default:
+        if (c != ' ' && c != '\t') {
+          nonSpace = i;
+          if (started == -1) {
+            started = i;
+          }
+        }
+        break;
+    }
+  }
+
+  finish(currentSection, data, nonSpace);
+  return result;
+}
+
+// now, I’d like to send greetings and best wishes to Kunos for using comment symbol (“;”) as a delimiter
+function parseIniInSemicolonsMode(data){
+  return parseIni(data, true);
 }
 
 function stringifyIni(data){
@@ -93,6 +167,7 @@ module.exports = {
   parseLut: parseLut,
   parseLutValue: parseLutValue,
   parseIni: parseIni,
+  parseIniInSemicolonsMode: parseIniInSemicolonsMode,
   stringifyIni: stringifyIni,
   interpolateLinear: interpolateLinear,
   interpolateCubic: interpolateCubic

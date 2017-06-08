@@ -18,7 +18,7 @@ const geoParams = require('./geo-params');
 // Postfix contains the number of the port wrapping server is running on.
 const SEPARATOR = 'ℹ';
 function fixName(presetFilename, wrappedHttpPort){
-  var presetIni = AcUtils.parseIni('' + fs.readFileSync(presetFilename));
+  var presetIni = AcUtils.parseIniInSemicolonsMode('' + fs.readFileSync(presetFilename));
   if (!presetIni['SERVER']) presetIni['SERVER'] = {};
   presetIni['SERVER']['NAME'] = `${presetIni['SERVER']['NAME']} ${SEPARATOR}${wrappedHttpPort}`; 
 
