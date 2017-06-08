@@ -1,6 +1,6 @@
 {
   "name": "ac-server-wrapper",
-  "version": "0.1.2",
+  "version": "0.1.6",
   "description": "Wraps around Assetto Corsa server, caches and extends responses",
   "main": "ac-server-wrapper.js",
   "dependencies": {
@@ -15,6 +15,9 @@
     "sha1": "^1.1.1",
     "throttle": "^1.0.3"
   },
+  "bin": {
+    "ac-server-wrapper": "./ac-server-wrapper.js"
+  },
   "devDependencies": {},
   "scripts": {},
   "repository": {
@@ -22,8 +25,7 @@
     "url": "http://github.com/gro-ove/ac-server-wrapper.git"
   },
   "keywords": [
-    "assetto",
-    "corsa"
+    "assetto corsa"
   ],
   "author": "x4fab",
   "license": "MIT"

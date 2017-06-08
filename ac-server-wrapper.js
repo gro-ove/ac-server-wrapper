@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 // common usings
 const fs = require('fs');
 const path = require('path');
@@ -51,15 +53,6 @@ process.on('uncaughtException', err => {
   console.error('PROCESS SHOULD BE RESTARTED');
   console.error('RIGHT NOW');
 });
-
-// test recursive packing/unpacking
-// const zip = require('./src/zip-async');
-// zip.pack('content', (err, c) => {
-//   fs.writeFileSync('temp.zip', c);
-//   zip.unpack(c, 'content3', err => {
-//     console.log(err)
-//   });
-// });
 
 // run the app!
 try {

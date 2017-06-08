@@ -59,6 +59,7 @@ function parseLutValue(value){
       .map(x => [ +x[0], +x[1] ]) : [];
 }
 
+// TODO: rework using CM algorithm as quite fast
 function parseIni(data){
   return data ? data.split(/\[(?=[A-Z\d_])/).slice(1)
       .map(x => x.match(/^([A-Z\d_]+)\]([\s\S]+)/))
@@ -72,10 +73,27 @@ function parseIni(data){
       }, {}) : {};
 }
 
+function stringifyIni(data){
+  var result = '';
+  for (var n in data){
+    var section = data[n];
+    result += `[${n}]\n`;
+
+    for (var m in section){
+      result += `${m}=${section[m]}\n`;
+    }
+
+    result += '\n';
+  }
+
+  return result;
+}
+
 module.exports = {
   parseLut: parseLut,
   parseLutValue: parseLutValue,
   parseIni: parseIni,
+  stringifyIni: stringifyIni,
   interpolateLinear: interpolateLinear,
   interpolateCubic: interpolateCubic
 };
