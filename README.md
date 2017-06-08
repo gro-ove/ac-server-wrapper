@@ -136,7 +136,7 @@ Instead of “…”, either put `"url": "<URL_TO_DOWNLOAD>"` if you want users 
 ##### Running server with prepared preset
 
 ```
-acServerWrapper <PATH TO SERVER PRESET>
+ac-server-wrapper <PATH TO SERVER PRESET>
 ```
 
 If you’re running server in some VDS and want to keep it running in background, you could use [forever](https://github.com/foreverjs/forever). But I’m not really familiar with Linux, and with Node.JS, there might be better ways.
