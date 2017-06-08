@@ -59,7 +59,7 @@ Small Node.JS script which wraps around Assetto Corsa server and then caches and
 - Node.JS (≥6.9.1, since I use some relatively new JS things);
 - NPM package manager.
 
-For Windows, you can get both of them (they are shipped packed) [here](https://nodejs.org/en/).
+For Windows, you can get both of them (they are shipped together) [here](https://nodejs.org/en/).
 
 ##### Installation
 
