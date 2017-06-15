@@ -147,6 +147,15 @@ Instead of “…”, either put `"url": "<URL_TO_DOWNLOAD>"` if you want users 
 
 If needed, you can run it from any other directory, just don’t forget to specify full path to the preset and acServer executable location with `--executable=<PATH>` argument. Also, if you’re running server in some VDS and want to keep it running in background, you could use [forever](https://github.com/foreverjs/forever). But I’m not really familiar with Linux, and with Node.JS, there might be better ways.
 
+##### Running latest version from GitHub (git required)
+
+```
+git clone https://github.com/gro-ove/ac-server-wrapper.git
+cd ac-server-wrapper
+npm install
+node ac-server-wrapper.js -e <AC SERVER DIR>/acServer <AC SERVER DIR>/presets/PRESET
+```
+
 ### In action
 
 - [Server in action (if it still runs)](http://46.173.219.83/);
