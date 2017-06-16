@@ -103,7 +103,7 @@ class AcServer {
       }
     }
 
-    var serverSection = this._config['SERVER'];
+    var serverSection = this._config['SERVER'] || {};
     this._frequency = +serverSection['CLIENT_SEND_INTERVAL_HZ'];
     this._maxContactsPerKm = +serverSection['MAX_CONTACTS_PER_KM'];
     this._trackId = serverSection['TRACK'];
@@ -123,13 +123,21 @@ class AcServer {
     };
 
     this._currentSessionType = 0;
-    this._ambientTemperature = +this._config['WEATHER_0']['BASE_TEMPERATURE_AMBIENT'];
-    this._roadTemperature = +this._config['WEATHER_0']['BASE_TEMPERATURE_ROAD'];
-    this._currentWeatherId = this._config['WEATHER_0']['GRAPHICS'];
+
+    if (this._config['WEATHER_0']){
+      this._ambientTemperature = +this._config['WEATHER_0']['BASE_TEMPERATURE_AMBIENT'];
+      this._roadTemperature = +this._config['WEATHER_0']['BASE_TEMPERATURE_ROAD'];
+      this._currentWeatherId = this._config['WEATHER_0']['GRAPHICS'];
+    }
+
     this._windSpeed = 0;
     this._windDirection = 0;
-    this._grip = +this._config['DYNAMIC_TRACK']['SESSION_START'];
-    this._gripTransfer = +this._config['DYNAMIC_TRACK']['SESSION_TRANSFER'];
+
+    if (this._config['DYNAMIC_TRACK']){
+      this._grip = +this._config['DYNAMIC_TRACK']['SESSION_START'];
+      this._gripTransfer = +this._config['DYNAMIC_TRACK']['SESSION_TRANSFER'];
+    }
+
     this._durations = [ 'BOOK', 'PRACTICE', 'QUALIFY', 'RACE' ]
         .map(x => +(this._config[x] || {})['TIME'] * 60 /* we need to return seconds to clients */)
         .filter(x => x > 0 && !isNaN(x));
