@@ -132,7 +132,7 @@ To allow clients download missing content, add next to it a directory called `cm
 
 Instead of “…”, either put `"url": "<URL_TO_DOWNLOAD>"` if you want users to download content from somewhere else or `"file": "<FILE_NAME>"` if package with missing thing is located in `cm_content` directory. Property `"version"` is optional.
 
-[Here is a server preset example](https://drive.google.com/file/d/0B6GfX1zRa8pOT3pmbVFVdnk3SUU/view?usp=drivesdk), if needed. Sorry about the inconvinience, some UI is in progress.
+[Here is a server preset example](https://drive.google.com/file/d/0B6GfX1zRa8pOM05zeld6S3JHSWM/view?usp=drivesdk), if needed. Sorry about the inconvinience, some UI is in progress.
 
 ##### Running server with prepared preset
 
@@ -160,7 +160,7 @@ node ac-server-wrapper.js -e <AC SERVER DIR>/acServer <AC SERVER DIR>/presets/PR
 
 - [Server in action (if it still runs)](http://46.173.219.83/);
 - [Provided information](http://46.173.219.83/api/details/);
-- [Server preset example](https://drive.google.com/file/d/0B6GfX1zRa8pOT3pmbVFVdnk3SUU/view?usp=drivesdk);
+- [Server preset example](https://drive.google.com/file/d/0B6GfX1zRa8pOM05zeld6S3JHSWM/view?usp=drivesdk);
 - How it looks like in [Content Manager](https://github.com/gro-ove/actools):
 
   ![In action](http://i.imgur.com/oo512t0.png)
