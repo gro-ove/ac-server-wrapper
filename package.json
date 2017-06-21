@@ -1,6 +1,6 @@
 {
   "name": "ac-server-wrapper",
-  "version": "0.1.9",
+  "version": "0.1.12",
   "description": "Wraps around Assetto Corsa server, caches and extends responses",
   "main": "ac-server-wrapper.js",
   "dependencies": {

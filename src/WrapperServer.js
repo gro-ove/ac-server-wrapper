@@ -96,10 +96,11 @@ class WrapperServer {
 
   _resErrorHtml(res, code, message, content){
       res.writeHead(code, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.write(this._html('base', { 
+      var content = `<h1>${code} ${message}</h1>` + (content ? `<pre>${content}</pre>` : '');
+      res.write(this._hasTemplate('base') ? this._html('base', { 
         title: message,
-        content: `<h1>${code} ${message}</h1>` + (content ? `<pre>${content}</pre>` : '')
-      }));
+        content: content
+      }) : content);
       res.end();
   }
 

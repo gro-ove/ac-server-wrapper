@@ -20,6 +20,13 @@ const SEPARATOR = 'ℹ';
 function fixName(presetFilename, wrappedHttpPort){
   var presetIni = AcUtils.parseIniInSemicolonsMode('' + fs.readFileSync(presetFilename));
   if (!presetIni['SERVER']) presetIni['SERVER'] = {};
+
+  var index;
+  if (presetIni['SERVER']['NAME'] && (index = presetIni['SERVER']['NAME'].indexOf(SEPARATOR)) !== -1 &&
+      +presetIni['SERVER']['NAME'].substr(index + SEPARATOR.length) == wrappedHttpPort) {
+    return presetFilename;
+  }
+
   presetIni['SERVER']['NAME'] = `${presetIni['SERVER']['NAME']} ${SEPARATOR}${wrappedHttpPort}`; 
 
   var resultFilename = presetFilename + '.tmp';

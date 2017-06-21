@@ -28,17 +28,13 @@ class App {
 
   _loadParams(){
     var paramsFilename = `${this._presetDirectory}/cm_wrapper_params.json`;
-    if (fs.existsSync(paramsFilename)){
-      this._paramsObj = jsonExt(fs.readFileSync(paramsFilename));
-    } else {
-      this._paramsObj = {
-        port: 80,
-        verboseLog: true,
-        downloadSpeedLimit: 1e6,
-        downloadPasswordOnly: true,
-        publishPasswordChecksum: true,
-      };
-    }
+    this._paramsObj = jsonExt.fromFile(paramsFilename, {
+      port: 80,
+      verboseLog: true,
+      downloadSpeedLimit: 1e6,
+      downloadPasswordOnly: true,
+      publishPasswordChecksum: true,
+    });
   }
 
   _updateParams(newParamsData){
@@ -80,7 +76,6 @@ class App {
   startContentProvider(){
     if (this._contentProvider) return;
 
-    this.ensureContentDirectoryExists();
     this._contentProvider = new ContentProvider(this._contentDirectory);
     this._wrapperServer.setContentProvider(this._contentProvider, this._paramsObj.downloadSpeedLimit);
 

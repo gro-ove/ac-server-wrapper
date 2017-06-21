@@ -78,7 +78,7 @@ function getVia_Nekudo(callback){
 
 function getGeoParams(callback){
   // At least one should work? Hopefully?
-  var providers = [ getVia_IpApiCo, getVia_FreeGeoIp, getVia_Nekudo, getVia_SypexgeoNet, getVia_IpApi ];
+  var providers = [ getVia_IpApi, getVia_FreeGeoIp, getVia_Nekudo, getVia_SypexgeoNet, getVia_IpApiCo ];
   var index = 0;
 
   function next(){

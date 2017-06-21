@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const rimraf = require('rimraf');
+const jsonExt = require('./json-ext');
 
 function filterEntries(entries){
   var copied = JSON.parse(JSON.stringify(entries))
@@ -33,9 +34,10 @@ function filterEntries(entries){
 class ContentProvider {
   constructor(packedContentDirectory) {
     this.directory = packedContentDirectory;
-    eval('this.entries = ' + fs.readFileSync(packedContentDirectory + '/content.json'));
-    if (!this.entries.cars) this.entries.cars = {};
+    this.filename = packedContentDirectory + '/content.json';
+    this.entries = jsonExt.fromFile(this.filename, {});
 
+    if (!this.entries.cars) this.entries.cars = {};
     this.filtered = filterEntries(this.entries);
   }
 
