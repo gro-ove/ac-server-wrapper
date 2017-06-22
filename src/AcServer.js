@@ -236,7 +236,7 @@ class AcServer {
 
     // Ignore if…
     if (d.startsWith('PAGE: ') || d.startsWith('Serve JSON took') || // page requested
-        d == 'REQ' || d.startsWith('{')){ // some random noise
+        d == 'REQ' || d.startsWith('{') || d.startsWith('Warning, server CPU overload')){ // some random noise
       return;
     }
 
@@ -358,6 +358,9 @@ class AcServer {
         return;
       }
 
+      var timeleft = +information.timeleft;
+      this._currentSessionUntil = isNaN(timeleft) || timeleft <= 0 ? null : Date.now() + timeleft * 1e3;
+
       this.getPlayers((players, error) => {
         if (players){
           for (var i = 0; i < players.Cars.length; i++) {
@@ -383,12 +386,16 @@ class AcServer {
         }
 
         // Fixing some wrong properties
-        information.ip = this._baseIp || "";
+        information.ip = this._baseIp || '';
         if (this._country && this._countryCode){
           information.country = [ this._country, this._countryCode ];
         }
         information.session = this._currentSessionType;
         information.durations = this._durations;
+
+        if (this._currentSessionUntil){
+          information.until = this._currentSessionUntil;
+        }
 
         // Stuff to get missing content
         if (this._contentProvider){
@@ -444,6 +451,12 @@ class AcServer {
     });
   }
 
+  checkSessionUntil(){
+    if (this._currentSessionUntil && Date.now() > this._currentSessionUntil){
+      this._dirty = true;
+    }
+  }
+
   getData(userGuid, callback){  
     if (this._httpPort == -1){
       callback && callback(null, 'AC server is not running');
@@ -455,6 +468,7 @@ class AcServer {
       return;
     }
 
+    this.checkSessionUntil();
     if (!this._dirty){
       callback && callback(this._data);
       return;
@@ -488,6 +502,7 @@ class AcServer {
       return;
     }
 
+    this.checkSessionUntil();
     if (!this._dirty){
       callback && callback(this._guidsMode ? {
         json: this._fixGuid(userGuid, this._dataJson),

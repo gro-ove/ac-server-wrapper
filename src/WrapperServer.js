@@ -258,21 +258,24 @@ class WrapperServer {
             res.writeHead(200, { 
               'Content-Type': 'application/json; charset=utf-8',
               'Content-Encoding': 'gzip',
-              'Last-Modified': (data.lastModified || new Date).toUTCString()
+              'Last-Modified': (data.lastModified || new Date).toUTCString(),
+              'X-Server-Time': Date.now()
             });
             res.write(data.compressed);
           } else if (typeof data.json === 'string') {
             gzip(req, res);
             res.writeHead(200, { 
               'Content-Type': 'application/json; charset=utf-8',
-              'Last-Modified': (data.lastModified || new Date).toUTCString()
+              'Last-Modified': (data.lastModified || new Date).toUTCString(),
+              'X-Server-Time': Date.now()
             });
             res.write(data.json);
           } else if (data.data) {
             // gzip(req, res);
             res.writeHead(200, { 
               'Content-Type': 'application/json; charset=utf-8',
-              'Last-Modified': (data.lastModified || new Date).toUTCString()
+              'Last-Modified': (data.lastModified || new Date).toUTCString(),
+              'X-Server-Time': Date.now()
             });
             res.write(JSON.stringify(data.data));
           } else {
