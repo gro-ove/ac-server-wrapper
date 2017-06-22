@@ -73,7 +73,7 @@ function parseIni(data, semicolonsMode = false){
         value = "";
       }
 
-      currentSection[key] = value;
+      currentSection[key] = value.trim();
       key = null;
     }
 
