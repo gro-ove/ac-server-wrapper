@@ -86,6 +86,8 @@ $RECYCLE.BIN/
 
 # For this project
 *.exe
+*.zip
 *.bat
 *.sublime-*
 content/*
+.dist/*
