@@ -132,7 +132,7 @@ To allow clients download missing content, add next to it a directory called `cm
 
 Instead of “…”, either put `"url": "<URL_TO_DOWNLOAD>"` if you want users to download content from somewhere else or `"file": "<FILE_NAME>"` if package with missing thing is located in `cm_content` directory. Property `"version"` is optional.
 
-[Here is a server preset example](https://drive.google.com/file/d/0B6GfX1zRa8pOM05zeld6S3JHSWM/view?usp=drivesdk), if needed. Sorry about the inconvinience, some UI is in progress.
+[Here is a server preset example](https://drive.google.com/open?id=1t7IlyqS23cX7ckItuBiykuj1B1bxIxRv), if needed. Sorry about the inconvinience, some UI is in progress.
 
 ##### Running server with prepared preset
 
